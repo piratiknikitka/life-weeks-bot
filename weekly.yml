@@ -1,0 +1,25 @@
+name: weekly-life-weeks-update
+
+on:
+  schedule:
+    - cron: "0 8 * * 1"   # every Monday, 08:00 UTC
+  workflow_dispatch: {}    # lets you trigger it manually from the Actions tab
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -r requirements.txt
+
+      - env:
+          SENDPULSE_CLIENT_ID: ${{ secrets.SENDPULSE_CLIENT_ID }}
+          SENDPULSE_CLIENT_SECRET: ${{ secrets.SENDPULSE_CLIENT_SECRET }}
+          SENDPULSE_BOT_ID: ${{ secrets.SENDPULSE_BOT_ID }}
+          BASE_URL: ${{ secrets.BASE_URL }}
+        run: python weekly_job.py
