@@ -94,3 +94,4 @@ export SENDPULSE_CLIENT_ID=xxx SENDPULSE_CLIENT_SECRET=xxx SENDPULSE_BOT_ID=xxx 
 python server.py
 # open http://localhost:5000/render.png?dob=1995-03-20
 ```
+
