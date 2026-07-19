@@ -15,16 +15,32 @@ TOTAL_WEEKS = YEARS * WEEKS_PER_YEAR  # 4680
 # --- visual settings ---
 CELL = 10          # cell size in px
 GAP = 2             # gap between cells in px
-MARGIN_LEFT = 60
-MARGIN_TOP = 70
+MARGIN_LEFT = 75
+MARGIN_TOP = 95
 MARGIN_RIGHT = 20
 MARGIN_BOTTOM = 45
+
+ARROW_COLOR = (60, 60, 160)
 
 COLOR_LIVED = (196, 30, 30)
 COLOR_LEFT = (255, 255, 255)
 COLOR_BORDER = (190, 190, 190)
 COLOR_BG = (255, 255, 255)
 COLOR_TEXT = (25, 25, 25)
+
+
+def _draw_arrow(draw, x0, y0, x1, y1, color=ARROW_COLOR, width=2, head=6):
+    draw.line([x0, y0, x1, y1], fill=color, width=width)
+    if x1 == x0:  # vertical arrow, pointing down
+        draw.polygon(
+            [(x1 - head, y1 - head), (x1 + head, y1 - head), (x1, y1 + head)],
+            fill=color,
+        )
+    else:  # horizontal arrow, pointing right
+        draw.polygon(
+            [(x1 - head, y1 - head), (x1 - head, y1 + head), (x1 + head, y1)],
+            fill=color,
+        )
 
 
 def weeks_lived(birth_date: date, as_of: date = None) -> int:
@@ -73,8 +89,22 @@ def draw_life_grid(birth_date: date, as_of: date = None) -> bytes:
     for y in range(0, YEARS + 1, 10):
         x = MARGIN_LEFT + y * (CELL + GAP)
         draw.text((x, MARGIN_TOP - 20), str(y), fill=COLOR_TEXT, font=font_axis)
-    draw.text((10, MARGIN_TOP + grid_h // 2 - 6), "weeks", fill=COLOR_TEXT, font=font_axis)
-    draw.text((MARGIN_LEFT + grid_w // 2 - 15, height - 20), "years", fill=COLOR_TEXT, font=font_axis)
+
+    # "years" direction arrow, above the year numbers, pointing right
+    draw.text((MARGIN_LEFT, MARGIN_TOP - 45), "years", fill=COLOR_TEXT, font=font_axis)
+    _draw_arrow(
+        draw,
+        MARGIN_LEFT + 45, MARGIN_TOP - 40,
+        MARGIN_LEFT + grid_w, MARGIN_TOP - 40,
+    )
+
+    # "weeks" direction arrow, to the left of the grid, pointing down
+    draw.text((10, MARGIN_TOP), "weeks", fill=COLOR_TEXT, font=font_axis)
+    _draw_arrow(
+        draw,
+        40, MARGIN_TOP + 25,
+        40, MARGIN_TOP + grid_h,
+    )
 
     # the grid itself: columns = years, rows = weeks within a year
     for col in range(YEARS):
