@@ -1,7 +1,10 @@
 """
 Run weekly (see .github/workflows/weekly.yml).
+
 Pulls every subscriber tagged `life_weeks_subscriber`, recalculates their
-weeks-lived count and resends a fresh grid image.
+weeks-lived count from the birth_year/birth_month/birth_day variables that
+SendPulse already stores (collected natively by the flow's "User input"
+steps - no custom webhook needed), and resends a fresh grid image.
 """
 
 import os
@@ -26,21 +29,34 @@ def main():
     for c in items:
         contact_id = c.get("id")
         variables = c.get("variables", {}) or {}
-        dob_iso = variables.get("birth_date_iso")
 
-        if not contact_id or not dob_iso:
+        year = variables.get("birth_year")
+        month = variables.get("birth_month")
+        day = variables.get("birth_day")
+
+        if not contact_id or not (year and month and day):
             skipped += 1
             continue
 
         try:
-            y, m, d = (int(p) for p in dob_iso.split("-"))
-            dob = date(y, m, d)
+            dob = date(int(year), int(month), int(day))
             lived = weeks_lived(dob)
-            caption = f"Lived {lived} of {TOTAL_WEEKS} weeks."
+            lived_days = (date.today() - dob).days
             photo_url = f"{BASE_URL}/render.png?dob={dob.isoformat()}"
 
-            sp.send_photo(contact_id, photo_url, caption)
-            sp.set_variable(contact_id, "weeks_lived", lived)
+            intro_text = (
+                f"Week {lived} lived! That's {lived_days} days total.\n"
+                f"Here's your updated life calendar:"
+            )
+            sp.send_text(contact_id, intro_text)
+            sp.send_photo(contact_id, photo_url)
+
+            # optional bookkeeping - safe to remove if you don't need it
+            try:
+                sp.set_variable(contact_id, "weeks_lived", lived)
+            except Exception as e:
+                print(f"[WARN] could not update weeks_lived for {contact_id}: {e}")
+
             sent += 1
         except Exception as e:
             print(f"[FAILED] contact={contact_id}: {e}")
