@@ -1,84 +1,77 @@
 import os
-from datetime import date
 from io import BytesIO
 
-from flask import Flask, request, send_file, jsonify, abort
+from flask import Flask, request, send_file, abort, jsonify
 
 from life_calendar import draw_life_grid, weeks_lived, TOTAL_WEEKS
-from sendpulse_client import SendPulseClient
 
 app = Flask(__name__)
-sp = SendPulseClient()
-
-# Public base URL of THIS service once deployed, e.g. https://life-weeks-bot.onrender.com
-BASE_URL = os.environ.get("BASE_URL", "http://localhost:5000")
-SUBSCRIBER_TAG = "life_weeks_subscriber"
 
 
-def parse_dob(day, month, year) -> date:
-    return date(int(year), int(month), int(day))
+def _parse_dob_from_request():
+    from datetime import date
+
+    dob_str = request.args.get("dob")
+    year = request.args.get("year")
+    month = request.args.get("month")
+    day = request.args.get("day")
+
+    if dob_str:
+        y, m, d = (int(p) for p in dob_str.split("-"))
+    elif year and month and day:
+        y, m, d = int(year), int(month), int(day)
+    else:
+        abort(400, "Provide either ?dob=YYYY-MM-DD or ?year=&month=&day=")
+    return date(y, m, d)
+
+
+@app.route("/life_stats")
+def life_stats():
+    """
+    Returns plain numbers so the SendPulse flow can show a text message
+    BEFORE sending the picture, e.g.:
+    /life_stats?dob={{birth_year}}-{{birth_month}}-{{birth_day}}
+
+    Response: {"weeks_lived": 1551, "days_lived": 10857,
+               "total_weeks": 4680, "remaining_weeks": 3129}
+    """
+    try:
+        dob = _parse_dob_from_request()
+    except Exception:
+        abort(400, "Invalid date. Use ?dob=YYYY-MM-DD or ?year=&month=&day=")
+
+    from datetime import date as _date
+    lived_weeks = weeks_lived(dob)
+    lived_days = (_date.today() - dob).days
+
+    return jsonify({
+        "weeks_lived": lived_weeks,
+        "days_lived": lived_days,
+        "total_weeks": TOTAL_WEEKS,
+        "remaining_weeks": TOTAL_WEEKS - lived_weeks,
+    })
 
 
 @app.route("/render.png")
 def render_png():
-    """Renders the grid on the fly. Example: /render.png?dob=1990-05-14"""
-    dob_str = request.args.get("dob")
-    if not dob_str:
-        abort(400, "dob query param required, format YYYY-MM-DD")
+    """
+    Renders the life-in-weeks grid on the fly. No storage, no state -
+    SendPulse (or a browser) just fetches this URL and gets a PNG back.
+
+    Called directly from the SendPulse flow's Image block, e.g.:
+    https://<your-app>.onrender.com/render.png?dob={{birth_year}}-{{birth_month}}-{{birth_day}}
+
+    Also accepts separate year/month/day params if that's more convenient
+    to wire up in the flow than building a single "dob" string:
+    /render.png?year={{birth_year}}&month={{birth_month}}&day={{birth_day}}
+    """
     try:
-        y, m, d = (int(p) for p in dob_str.split("-"))
-        dob = date(y, m, d)
+        dob = _parse_dob_from_request()
     except Exception:
-        abort(400, "invalid dob format, expected YYYY-MM-DD")
+        abort(400, "Invalid date. Use ?dob=YYYY-MM-DD or ?year=&month=&day=")
 
     png_bytes = draw_life_grid(dob)
     return send_file(BytesIO(png_bytes), mimetype="image/png")
-
-
-@app.route("/sendpulse/webhook", methods=["POST"])
-def sendpulse_webhook():
-    """
-    Called by the SendPulse Flow Builder's "Webhook" element right after
-    birth_day / birth_month / birth_year variables are collected from the user.
-    """
-    payload = request.get_json(force=True, silent=True) or {}
-    event = payload[0] if isinstance(payload, list) else payload
-
-    contact = event.get("contact", {}) if isinstance(event, dict) else {}
-    contact_id = contact.get("id") or event.get("contact_id")
-    variables = contact.get("variables", {}) or {}
-
-    day = variables.get("birth_day")
-    month = variables.get("birth_month")
-    year = variables.get("birth_year")
-
-    if not contact_id or not (day and month and year):
-        return jsonify({"status": "ignored", "reason": "missing contact_id or dob parts"}), 200
-
-    try:
-        dob = parse_dob(day, month, year)
-        if dob > date.today():
-            raise ValueError("dob is in the future")
-    except Exception:
-        sp.send_text(
-            contact_id,
-            "That date doesn't look valid. Please tell me your birth year, "
-            "month and day again (numbers only).",
-        )
-        return jsonify({"status": "invalid_date"}), 200
-
-    lived = weeks_lived(dob)
-    caption = f"Lived {lived} of {TOTAL_WEEKS} weeks."
-    photo_url = f"{BASE_URL}/render.png?dob={dob.isoformat()}"
-
-    # persist state on the SendPulse side (no external DB needed)
-    sp.set_variable(contact_id, "birth_date_iso", dob.isoformat())
-    sp.set_variable(contact_id, "weeks_lived", lived)
-    sp.add_tag(contact_id, SUBSCRIBER_TAG)
-
-    sp.send_photo(contact_id, photo_url, caption)
-
-    return jsonify({"status": "ok", "weeks_lived": lived}), 200
 
 
 @app.route("/health")
