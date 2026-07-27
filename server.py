@@ -71,7 +71,11 @@ def render_png():
         abort(400, "Invalid date. Use ?dob=YYYY-MM-DD or ?year=&month=&day=")
 
     png_bytes = draw_life_grid(dob)
-    return send_file(BytesIO(png_bytes), mimetype="image/png")
+    resp = send_file(BytesIO(png_bytes), mimetype="image/png")
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 @app.route("/health")
