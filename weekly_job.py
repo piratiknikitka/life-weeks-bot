@@ -42,13 +42,10 @@ def main():
             dob = date(int(year), int(month), int(day))
             lived = weeks_lived(dob)
             lived_days = (date.today() - dob).days
-            photo_url = f"{BASE_URL}/render.png?dob={dob.isoformat()}"
+            photo_url = f"{BASE_URL}/render.png?dob={dob.isoformat()}&v={date.today().isoformat()}"
 
-            intro_text = (
-                f"Week {lived} lived! That's {lived_days} days total.\n"
-                f"Here's your updated life calendar:"
-            )
-            sp.send_text(contact_id, intro_text)
+            sp.send_text(contact_id, f"Week {lived} lived! That's {lived_days} days total.")
+            sp.send_text(contact_id, "Here's your updated life calendar:")
             sp.send_photo(contact_id, photo_url)
 
             # optional bookkeeping - safe to remove if you don't need it
