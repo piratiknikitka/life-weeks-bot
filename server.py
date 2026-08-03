@@ -52,6 +52,40 @@ def life_stats():
     })
 
 
+@app.route("/render/<dob>/<version>.png")
+def render_png_path(dob, version):
+    """
+    Same as /render.png but with the date baked into the URL PATH instead
+    of the query string, so the URL always ends in a literal ".png".
+
+    Some link-preview / photo-type detectors (possibly including
+    SendPulse's own relay to Telegram) guess the content type from the
+    URL string itself and get confused by a query string after the
+    extension (".../render.png?dob=...") even though the actual HTTP
+    response is a perfectly valid image. This route sidesteps that by
+    keeping ".png" as the true last part of the path:
+
+    https://<your-app>.onrender.com/render/2000-04-12/2026-08-03.png
+
+    `version` isn't used for anything except cache-busting - any string
+    works, e.g. today's date.
+    """
+    from datetime import date
+
+    try:
+        y, m, d = (int(p) for p in dob.split("-"))
+        birth_date = date(y, m, d)
+    except Exception:
+        abort(400, "Invalid dob in path. Use /render/YYYY-MM-DD/<anything>.png")
+
+    png_bytes = draw_life_grid(birth_date)
+    resp = send_file(BytesIO(png_bytes), mimetype="image/png")
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
+
+
 @app.route("/render.png")
 def render_png():
     """
