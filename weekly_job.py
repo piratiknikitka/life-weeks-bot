@@ -28,8 +28,16 @@ def send_photo_with_retry(sp, contact_id, photo_url, attempts=3, delay=5):
     URL ourselves first, plus a couple of retries, makes this reliable
     without needing a paid always-on host.
     """
+    print(f"[INFO] photo_url = {photo_url}")
     try:
-        requests.get(photo_url, timeout=60)  # warm up / pre-render, ignore result
+        warm_resp = requests.get(photo_url, timeout=60)
+        print(
+            f"[INFO] pre-warm response: status={warm_resp.status_code} "
+            f"content-type={warm_resp.headers.get('Content-Type')} "
+            f"bytes={len(warm_resp.content)}"
+        )
+        if not warm_resp.ok or not warm_resp.headers.get("Content-Type", "").startswith("image"):
+            print(f"[WARN] photo_url did not return an image! Body preview: {warm_resp.text[:300]}")
     except Exception as e:
         print(f"[WARN] pre-warm request failed (continuing anyway): {e}")
 
