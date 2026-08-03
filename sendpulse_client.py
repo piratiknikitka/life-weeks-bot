@@ -14,6 +14,17 @@ import requests
 API_BASE = "https://api.sendpulse.com"
 
 
+def _raise_with_body(resp):
+    """requests' default raise_for_status() only shows the status code -
+    SendPulse's validation errors are in the response body, which is what
+    actually explains a 4xx. Surface that in the exception message."""
+    if not resp.ok:
+        raise requests.HTTPError(
+            f"{resp.status_code} error for url {resp.url}: {resp.text}",
+            response=resp,
+        )
+
+
 class SendPulseClient:
     def __init__(self, client_id=None, client_secret=None, bot_id=None):
         self.client_id = client_id or os.environ["SENDPULSE_CLIENT_ID"]
@@ -34,7 +45,7 @@ class SendPulseClient:
             },
             timeout=15,
         )
-        resp.raise_for_status()
+        _raise_with_body(resp)
         data = resp.json()
         self._token = data["access_token"]
         self._token_expires_at = time.time() + data.get("expires_in", 3600)
@@ -52,7 +63,7 @@ class SendPulseClient:
             f"{API_BASE}/telegram/contacts/send",
             json=payload, headers=self._headers(), timeout=20,
         )
-        resp.raise_for_status()
+        _raise_with_body(resp)
         return resp.json()
 
     def send_text(self, contact_id: str, text: str):
@@ -61,7 +72,7 @@ class SendPulseClient:
             f"{API_BASE}/telegram/contacts/send",
             json=payload, headers=self._headers(), timeout=20,
         )
-        resp.raise_for_status()
+        _raise_with_body(resp)
         return resp.json()
 
     def set_variable(self, contact_id: str, variable_name: str, variable_value):
@@ -74,7 +85,7 @@ class SendPulseClient:
             f"{API_BASE}/telegram/contacts/setVariable",
             json=payload, headers=self._headers(), timeout=15,
         )
-        resp.raise_for_status()
+        _raise_with_body(resp)
         return resp.json()
 
     def add_tag(self, contact_id: str, tag: str):
@@ -83,7 +94,7 @@ class SendPulseClient:
             json={"contact_id": contact_id, "tag_name": tag},
             headers=self._headers(), timeout=15,
         )
-        resp.raise_for_status()
+        _raise_with_body(resp)
         return resp.json()
 
     def get_contacts_by_tag(self, tag: str):
@@ -92,5 +103,5 @@ class SendPulseClient:
             params={"tag": tag, "bot_id": self.bot_id},
             headers=self._headers(), timeout=30,
         )
-        resp.raise_for_status()
+        _raise_with_body(resp)
         return resp.json()
