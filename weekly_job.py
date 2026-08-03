@@ -78,7 +78,7 @@ def main():
             dob = date(int(year), int(month), int(day))
             lived = weeks_lived(dob)
             lived_days = (date.today() - dob).days
-            photo_url = f"{BASE_URL}/render.png?dob={dob.isoformat()}&v={date.today().isoformat()}"
+            photo_url = f"{BASE_URL}/render/{dob.isoformat()}/{date.today().isoformat()}.png"
 
             sp.send_text(contact_id, f"Week {lived} lived! That's {lived_days} days total.")
             sp.send_text(contact_id, "Here's your updated life calendar:")
