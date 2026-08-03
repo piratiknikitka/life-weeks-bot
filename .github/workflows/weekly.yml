@@ -17,6 +17,21 @@ jobs:
 
       - run: pip install -r requirements.txt
 
+      - name: Wake up Render (free tier sleeps after inactivity)
+        env:
+          BASE_URL: ${{ secrets.BASE_URL }}
+        run: |
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/health" || echo "000")
+            echo "Attempt $i: HTTP $code"
+            if [ "$code" = "200" ]; then
+              break
+            fi
+            sleep 15
+          done
+          # give Render a few extra seconds to fully warm up even after /health responds
+          sleep 5
+
       - env:
           SENDPULSE_CLIENT_ID: ${{ secrets.SENDPULSE_CLIENT_ID }}
           SENDPULSE_CLIENT_SECRET: ${{ secrets.SENDPULSE_CLIENT_SECRET }}
