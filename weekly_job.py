@@ -8,13 +8,41 @@ steps - no custom webhook needed), and resends a fresh grid image.
 """
 
 import os
+import time
 from datetime import date
+
+import requests
 
 from sendpulse_client import SendPulseClient
 from life_calendar import weeks_lived, TOTAL_WEEKS
 
 BASE_URL = os.environ["BASE_URL"]
 SUBSCRIBER_TAG = "life_weeks_subscriber"
+
+
+def send_photo_with_retry(sp, contact_id, photo_url, attempts=3, delay=5):
+    """
+    SendPulse fetches photo_url itself to relay it to Telegram. If our
+    server (Render free tier) was asleep, that fetch can fail even though
+    our POST to SendPulse's own /send endpoint succeeds. Pre-warming the
+    URL ourselves first, plus a couple of retries, makes this reliable
+    without needing a paid always-on host.
+    """
+    try:
+        requests.get(photo_url, timeout=60)  # warm up / pre-render, ignore result
+    except Exception as e:
+        print(f"[WARN] pre-warm request failed (continuing anyway): {e}")
+
+    last_error = None
+    for attempt in range(1, attempts + 1):
+        try:
+            sp.send_photo(contact_id, photo_url)
+            return
+        except Exception as e:
+            last_error = e
+            print(f"[WARN] send_photo attempt {attempt}/{attempts} failed for {contact_id}: {e}")
+            time.sleep(delay)
+    raise last_error
 
 
 def main():
@@ -46,7 +74,7 @@ def main():
 
             sp.send_text(contact_id, f"Week {lived} lived! That's {lived_days} days total.")
             sp.send_text(contact_id, "Here's your updated life calendar:")
-            sp.send_photo(contact_id, photo_url)
+            send_photo_with_retry(sp, contact_id, photo_url)
 
             # optional bookkeeping - safe to remove if you don't need it
             try:
